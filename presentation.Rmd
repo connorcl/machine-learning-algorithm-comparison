@@ -1,0 +1,363 @@
+---
+title: "Machine Learning Algorithms for Binary Classification"
+subtitle: "Deep Learning and Decision Tree Learning"
+author: "Connor Claypool"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r echo=FALSE, include=FALSE}
+
+library(dplyr)
+library(ggplot2)
+library(data.table)
+library(xtable)
+library(knitr)
+library(kableExtra)
+
+# load neural network and decision tree timings data
+deep_learning_timings <- read.csv("deep_learning_results.csv")
+decision_tree_timings <- read.csv("decision_tree_results.csv")
+
+# load timings of algorithms w/ noncontiguous data
+deep_learning_timings_nc <- read.csv("deep_learning_results_nc.csv")
+decision_tree_timings_nc <- read.csv("decision_tree_results_nc.csv")
+
+# combine into single dataframe
+deep_learning_timings$Algorithm = "Deep Learning"
+decision_tree_timings$Algorithm = "Decision Tree Learning"
+timings <- rbind(deep_learning_timings, decision_tree_timings)
+timings <- timings %>% mutate(Algorithm = as.factor(Algorithm))
+
+```
+
+## Machine Learning for Binary Classification
+
+- Deep learning and decision tree learning
+
+- Each algorithm trains a predictive model using a dataset of samples which include one or more independent input variables and a binary dependent variable
+
+- The model is then validated on new data to determine its accuracy
+
+- This application uses the Banknote Authentication Data Set from the UCI Machine Learning Repository, consisting of four measurements from images of banknotes along with whether the banknote is authentic
+
+## Deep Learning: Use of Data Structures
+
+For storing data samples, a `std::vector` was chosen because:
+
+- Data samples are accessed sequentially, and `std::vector` stores its
+elements contiguously in memory, allowing an advantage over e.g. linked lists and hash tables
+in terms of locality and the cache
+
+- No lookup or search operations are used, so data structures like sets, maps and hash tables make little sense
+
+- The size of `std::vector` is not fixed at compile time, which would be a cumbersome code requirement
+
+- No insertions or deletions occur once the data is loaded, meaning no expensive reallocations after this
+
+## Deep Learning: Use of Data Structures
+
+The independent variables are stored in a custom `Matrix` class template backed by a two-dimensional `std::array` because:
+
+- Linear algebra operations such as dot product, transposition follow defined patterns based on element position so a `std::array`'s $O(1)$ index-based lookup is the best fit
+
+- A two-dimensional `std::array`'s elements are contiguous which provides a locality advantage for the above operations and keeps the dataset contiguous
+
+- Sizes are determined by the number of independent variables and the architecture of the model, and compile-time size definitions mean it is impossible to pass an invalid-sized `Matrix` to e.g. a dot product method
+
+## Deep Learning: Use of Data Structures
+
+Matrices of parameters and intermediate results are stored in a custom `GradMatrix` class template which includes another `Matrix` of gradients as a property because:
+
+- Elements and their gradients are often accessed in short succession, so storing the gradients contiguously with the elements provides a locality advantage
+
+```{r echo=F, include=F}
+
+# timing sample with gradients stored contiguously
+deep_learning_sample <- deep_learning_timings %>% 
+  filter(samples_proportion == 8 & x_vars_proportion == 4) %>% 
+  .$train_time
+
+# timing sample with gradients stored via a pointer
+deep_learning_sample_nc <- deep_learning_timings_nc %>% 
+  filter(samples_proportion == 8 & x_vars_proportion == 4) %>% 
+  .$time
+
+# comparing samples with rank-sum test
+rank_sum_results <- wilcox.test(deep_learning_sample, deep_learning_sample_nc, conf.int=T)
+```
+
+
+- The median training time in nanoseconds across 100 measurements was `r sprintf("%g", median(deep_learning_sample))` with gradients stored contiguously and `r sprintf("%g", median(deep_learning_sample_nc))` with storage via a pointer
+
+- Comparing these samples with a Wilcoxon rank-sum test yields a p-value of `r sprintf("%g", rank_sum_results$p.value)` and an effect size estimate of `r sprintf("%g", abs(rank_sum_results$estimate))` nanoseconds
+
+## Decision Tree Learning: Use of Data Structures
+
+For storing data samples, a `std::vector` was chosen because:
+
+- Each sample is accessed multiple times but not in sequential order, `std::vector` benefits from contiguous storage and $O(1)$ random access
+
+- No search or key-based lookup operations, so maps, sets & hash tables would not make sense
+
+- Compile-time fixed size would be a cumbersome requirement as for deep learning
+
+## Decision Tree Learning: Use of Data Structures
+
+For storing rows within the data table, a `std::array` was used, because:
+
+- Variables within a row are accessed both sequentially and randomly, `std::array` benefits from $O(1)$ random access
+
+- Keys, e.g. strings would make some sense, but they would be duplicated for each row, and integer indices are perfectly suitable
+
+- `std::array` allows contiguity across parent container
+
+- Number of variables is known at compile time
+
+## Decision Tree Learning: Use of Data Structures
+
+For storing the indices of the data samples, a `std::vector` was used because:
+
+- This allows each node to maintain an iterator to the start and end points of its group, and
+partition (sort) its group into two and pass the relevant iterators to its child nodes' constructors
+
+- This means the data can be stored contiguously (as opposed to sorting a collection of pointers to rows) with no need to rearrange whole rows in memory
+
+- `std::vector` supports sorting (unlike sets, maps & hash tables), a dynamic size and is stored contiguously
+
+## Decision Tree Learning: Use of Data Structures
+
+```{r echo=F, include=F}
+
+# timings with dataset stored contiguously
+decision_tree_sample <- decision_tree_timings %>%
+  filter(samples_proportion == 8 & x_vars_proportion == 4) %>% 
+  .$train_time
+
+# timings with rows stored via pointers
+decision_tree_sample_nc <- decision_tree_timings_nc %>% 
+  filter(samples_proportion == 8 & x_vars_proportion == 4) %>% 
+  .$time
+
+# comparing samples with rank-sum test
+rank_sum_results <- wilcox.test(decision_tree_sample, decision_tree_sample_nc, conf.int=T)
+```
+
+- The median training time in nanoseconds across 100 measurements was `r sprintf("%g", median(decision_tree_sample))` with rows stored contiguously and `r sprintf("%g", median(decision_tree_sample_nc))` with rows stored via pointers
+
+- Comparing these samples with a Wilcoxon rank-sum test yields a p-value of `r sprintf("%g", rank_sum_results$p.value)` and an effect size estimate of `r sprintf("%g", abs(rank_sum_results$estimate))` nanoseconds
+
+## Decision Tree Learning: Use of Data Structures
+
+The decision tree model is stored in a binary tree-like structure because:
+
+- The decision process is binary: a node's split point partitions a group of samples into two, with leaf nodes representing a prediction value
+
+- No searching, sorting, or updating is needed - training and inference both start at root and create/find leaf node(s)
+
+- Small tree size and the low complexity of validation means the code simplicity of storing child nodes via pointers outweighs the possible locality advantages of using arrays
+
+## Deep Learning: Time Complexity
+
+Holding the architecture of the model and the number of epochs constant:
+
+- The time complexity of training the deep learning model is $O(s \times v)$, where $s$ is the number of data samples and $v$ is the number of independent variables per sample
+
+- The time complexity of inference with the deep learning model is also $O(s \times v)$ as the forward pass is the same, without backward pass or update
+
+## Decision Tree Learning: Time Complexity
+
+Holding the maximum depth of the model (and thus the number of nodes) constant:
+
+- The time complexity of training the decision tree model is $O(s^{2} \times v)$, where $s$ is the number of training samples and $v$ is the number of independent variables per sample 
+
+- The time complexity of inference with the decision tree model is $O(s)$, where $s$ is the number of validation samples
+
+## Performance Comparison
+
+```{r echo=F, warning=FALSE}
+
+# plot of trianing times as number of data samples varies
+timings %>% filter(x_vars_proportion == 4) %>% 
+  ggplot() + 
+  aes(x = factor(samples_proportion), y = train_time, color = Algorithm) + 
+  geom_boxplot() + 
+  ggtitle("Distribution of training times as the number of data samples varies") +
+  xlab("Proportion of data samples used (eighths)") +
+  ylab("Training time (nanoseconds)")
+
+```
+
+## Performance Comparison
+
+```{r echo=F, warning=F}
+
+# perform rank-sum test for difference between algorithm training times for each proportion of samples
+samples_proportion_train_results <- lapply(1:8, function(i) {
+  data_subset <- timings %>% filter(samples_proportion == i & x_vars_proportion == 4)
+  result <- wilcox.test(train_time ~ Algorithm, data = data_subset, conf.int = T)
+  return(c(i, result$p.value, result$estimate))
+})
+
+samples_proportion_train_results <- as.data.frame(transpose(samples_proportion_train_results), 
+                                                  col.names = c("Samples proportion", 
+                                                                "p-value", 
+                                                                "Effect size estimate (nanoseconds)"),
+                                                  check.names = F)
+
+table_caption = "Comparing these distributions by algorithm with a Wilcoxon rank-sum test yields the following results:"
+
+kable(samples_proportion_train_results, caption = table_caption) %>% kable_styling(font_size = 16)
+
+```
+
+## Performance Comparison
+
+```{r echo=F, warning=FALSE}
+
+# plot of distribution of validation times as number of training samples changes
+timings %>% filter(x_vars_proportion == 4) %>% 
+  ggplot() + 
+  aes(x = factor(samples_proportion), y = valid_time, color = Algorithm) + 
+  geom_boxplot() +
+  ggtitle("Distribution of validation times as the number of data samples varies") +
+  xlab("Proportion of data samples used (eighths)") +
+  ylab("Validation time (nanoseconds)")
+
+```
+
+## Performance Comparison
+
+```{r echo=F, warning=F}
+
+# perform rank-sum test for difference between algorithm validation times for each proportion of samples
+samples_proportion_valid_results <- lapply(1:8, function(i) {
+  data_subset <- timings %>% filter(samples_proportion == i & x_vars_proportion == 4)
+  result <- wilcox.test(valid_time ~ Algorithm, data = data_subset, conf.int = T)
+  return(c(i, result$p.value, result$estimate))
+})
+
+samples_proportion_valid_results <- as.data.frame(transpose(samples_proportion_valid_results), 
+                                                  col.names = c("Samples proportion", 
+                                                                "p-value", 
+                                                                "Effect size estimate (nanoseconds)"),
+                                                  check.names = F)
+
+table_caption = "Comparing these distributions by algorithm with a Wilcoxon rank-sum test yields the following results:"
+
+kable(samples_proportion_valid_results, caption = table_caption) %>% kable_styling(font_size = 16)
+
+```
+
+## Performance Comparison
+
+```{r echo=F, warning=FALSE}
+
+# plot of distribution of training times as number of x variables used changes
+timings %>% filter(samples_proportion == 8) %>% 
+  ggplot() + 
+  aes(x = factor(x_vars_proportion), y = train_time, color = Algorithm) + 
+  geom_boxplot() +
+  ggtitle("Distribution of training times as the number of independent variables varies") +
+  xlab("Independent variables used") +
+  ylab("Training time (nanoseconds)")
+
+
+```
+
+## Performance Comparison
+
+```{r echo=F, warning=F}
+
+# perform rank-sum test for difference between algorithm training times 
+# for each number of independent variables
+
+x_vars_proportion_train_results <- lapply(1:4, function(i) {
+  data_subset <- timings %>% filter(x_vars_proportion == i & samples_proportion == 8)
+  result <- wilcox.test(train_time ~ Algorithm, data = data_subset, conf.int = T)
+  return(c(i, result$p.value, result$estimate))
+})
+
+x_vars_proportion_train_results <- as.data.frame(transpose(x_vars_proportion_train_results), 
+                                                 col.names = c("Independent variables", 
+                                                              "p-value", 
+                                                              "Effect size estimate (nanoseconds)"),
+                                                 check.names = F)
+
+table_caption = "Comparing these distributions by algorithm with a Wilcoxon rank-sum test yields the following results:"
+
+kable(x_vars_proportion_train_results, caption = table_caption) %>% kable_styling(font_size = 16)
+
+```
+
+## Performance Comparison
+
+```{r echo=F, warning=FALSE}
+
+# plot of distribution of validation times as number of x variables used changes
+timings %>% filter(samples_proportion == 8) %>% 
+  ggplot() + 
+  aes(x = factor(x_vars_proportion), y = valid_time, color = Algorithm) + 
+  geom_boxplot() +
+  ggtitle("Distribution of validation times as the number of independent variables varies") +
+  xlab("Independent variables used") +
+  ylab("Validation time (nanoseconds)")
+
+```
+
+## Performance Comparison
+
+```{r echo=F, warning=F}
+
+# perform rank-sum test for difference between algorithm validation times 
+# for each number of independent variables
+
+x_vars_proportion_valid_results <- lapply(1:4, function(i) {
+  data_subset <- timings %>% filter(x_vars_proportion == i & samples_proportion == 8)
+  result <- wilcox.test(valid_time ~ Algorithm, data = data_subset, conf.int = T)
+  return(c(i, result$p.value, result$estimate))
+})
+
+x_vars_proportion_valid_results <- as.data.frame(transpose(x_vars_proportion_valid_results), 
+                                                 col.names = c("Independent variables", 
+                                                               "p-value", 
+                                                               "Effect size estimate (nanoseconds)"),
+                                                 check.names = F)
+
+table_caption = "Comparing these distributions by algorithm with a Wilcoxon rank-sum test yields the following results:"
+
+kable(x_vars_proportion_valid_results, caption = table_caption) %>% kable_styling(font_size = 16)
+```
+
+## Accuracy Comparison
+
+```{r echo=F}
+
+# plot of accuracy as number of x variables used changes
+timings %>% filter(x_vars_proportion == 4) %>% 
+  ggplot() + 
+  aes(x = factor(samples_proportion), y = accuracy, color = Algorithm) + 
+  geom_point(size = 2) +
+  ggtitle("Validation accuracy as the number of training samples varies") +
+  xlab("Proportion of data samples used (eighths)") +
+  ylab("Accuracy")
+
+```
+
+## Accuracy Comparison
+
+```{r echo=F}
+
+# plot of accuracy as number of samples used changes
+timings %>% filter(samples_proportion == 8) %>% 
+  ggplot() + 
+  aes(x = factor(x_vars_proportion), y = accuracy, color = Algorithm) + 
+  geom_point(size = 2) +
+  ggtitle("Validation accuracy as the number of independent variables varies") +
+  xlab("Independent variables used") +
+  ylab("Accuracy")
+
+```
