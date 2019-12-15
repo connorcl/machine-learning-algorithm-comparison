@@ -19,12 +19,12 @@ library(knitr)
 library(kableExtra)
 
 # load neural network and decision tree timings data
-deep_learning_timings <- read.csv("deep_learning_results.csv")
-decision_tree_timings <- read.csv("decision_tree_results.csv")
+deep_learning_timings <- read.csv("data/deep_learning_results.csv")
+decision_tree_timings <- read.csv("data/decision_tree_results.csv")
 
 # load timings of algorithms w/ noncontiguous data
-deep_learning_timings_nc <- read.csv("deep_learning_results_nc.csv")
-decision_tree_timings_nc <- read.csv("decision_tree_results_nc.csv")
+deep_learning_timings_nc <- read.csv("data/deep_learning_results_nc.csv")
+decision_tree_timings_nc <- read.csv("data/decision_tree_results_nc.csv")
 
 # combine into single dataframe
 deep_learning_timings$Algorithm = "Deep Learning"
