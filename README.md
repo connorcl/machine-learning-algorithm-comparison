@@ -1,5 +1,7 @@
 # machine-learning-algorithm-comparison
-A C++ implementation and performance comparison of two machine learning algorithms, deep learning and decision tree learning, created as the final project for the university module Data Structures and Algorithms 1. To suit the requirements of this module, the algorithms are written from scratch with no use of external libraries and are CPU-based and single-threaded.
+A C++ implementation and performance comparison of two machine learning algorithms, deep learning and decision tree learning, created as the final project for the university module Data Structures and Algorithms 1.
+
+The purpose of this project was to demonstrate an informed choice of data structures in implementing standard algorithms, as well as the ability to measure, optimize and compare the performance of these algorithms. As such, the application contains implementations of each machine learning algorithm along with just enough additional code to train, validate and time them using varying amounts of data. To suit the requirements of this module, the algorithms are written from scratch with no use of external libraries and are CPU-based and single-threaded.
 
 Once compiled, the resulting executable must be run in a directory containing the two CSV files produced by `data/process_data.R`, `banknote_train.csv` and `banknote_valid.csv`. These data files are a split version of the Banknote Authentication Data Set from the UCI Machine Learning Repository, which can be found [here](https://archive.ics.uci.edu/ml/datasets/banknote+authentication). Reference: Dua, D. and Graff, C. (2019). UCI Machine Learning Repository [http://archive.ics.uci.edu/ml]. Irvine, CA: University of California, School of Information and Computer Science.
 
