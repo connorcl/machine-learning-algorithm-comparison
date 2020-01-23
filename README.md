@@ -1,5 +1,5 @@
 # machine-learning-algorithm-comparison
-A C++ implementation and performance comparison of two machine learning algorithms, deep learning and decision tree learning, created as the final project for the university module Data Structures and Algorithms 1.
+A C++ implementation and performance comparison of two machine learning algorithms, deep learning and decision tree learning, created as the final project for the university module Data Structures and Algorithms 1 (Grade: A+).
 
 The purpose of this project was to demonstrate an informed choice of data structures in implementing standard algorithms, as well as the ability to measure, optimize and compare the performance of these algorithms. As such, the application contains implementations of each machine learning algorithm along with just enough additional code to train, validate and time them using varying amounts of data. To suit the requirements of this module, the algorithms are written from scratch with no use of external libraries and are CPU-based and single-threaded.
 
